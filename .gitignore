@@ -11,3 +11,4 @@ pubspec.lock
 example/.dart_tool/
 example/build/
 example/pubspec.lock
+example/pubspec_overrides.yaml
