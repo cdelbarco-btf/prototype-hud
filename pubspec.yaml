@@ -1,0 +1,32 @@
+name: prototype_hud
+description: >-
+  The prototype HUD: everything around the phone on a prototype page
+  (header, rail, code viewer and stage). A design review tool, not part of
+  Aura DS. Built with Aura tokens.
+publish_to: none
+version: 1.0.0
+
+environment:
+  sdk: ^3.10.3
+  flutter: ">=3.44.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Aura, from the design repo. A prototype inside aura_ds/ds/example already
+  # has aura_ds by path: it overrides this one (see README).
+  aura_ds:
+    git:
+      url: https://github.com/gobetterfly/aura_ds.git
+      path: ds
+      ref: main-design
+  device_frame: ^1.4.0
+  google_fonts: ^8.0.0
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/

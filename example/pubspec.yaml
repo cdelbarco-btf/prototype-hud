@@ -1,0 +1,27 @@
+name: prototype_hud_example
+description: The HUD with a placeholder screen, to try changes to the HUD.
+publish_to: none
+version: 1.0.0
+
+environment:
+  sdk: ^3.10.3
+
+dependencies:
+  flutter:
+    sdk: flutter
+  aura_ds:
+    git:
+      url: https://github.com/gobetterfly/aura_ds.git
+      path: ds
+      ref: main-design
+  prototype_hud:
+    path: ../
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    # Read by the code viewer.
+    - lib/placeholder_screen.dart
