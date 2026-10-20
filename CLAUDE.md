@@ -1,27 +1,27 @@
-# prototype_hud: reglas
+# prototype_hud: rules
 
-Este paquete es el HUD de los prototipos de diseño de Betterfly. Lo usan varios diseñadores en sus prototipos, así que **un cambio acá le llega a todos** con el próximo `flutter pub upgrade prototype_hud`. La guía completa está en `GUIDE.md`: léela antes de cambiar algo.
+This package is the HUD for Betterfly's design prototypes. Several designers use it in their prototypes, so **a change here reaches everyone** with their next `flutter pub upgrade prototype_hud`. The full guide is in `GUIDE.md`: read it before changing anything.
 
-## Reglas que no se rompen
+## Rules that never break
 
-- **El HUD no es Aura DS.** Es una herramienta interna de revisión. Sus piezas son locales y no se promueven al DS ni se le piden a Aura.
-- **Tokens de Aura siempre**, también en el HUD: color, tipografía, espaciado, radios y duraciones. Antes de dar algo por terminado, busca valores crudos (`Color(0x`, números sueltos de padding o radio, `Duration(milliseconds:`) en lo que tocaste. Los únicos valores fuera de tokens son los de la tabla *Huecos del DS que el HUD usa* de la guía.
-- **Movimiento:** todo lo del HUD se mueve con `HudMotion` (`flow` y `wobble`). **Lo que va dentro del teléfono no**: usa el movimiento de Aura (`AuraMotion`), porque tiene que verse como la app real.
-- **El lime (`interactiveAccentOn`) es sólo para lo activo**: categoría abierta, paso actual, fila elegida, opción elegida, switch encendido, línea del header.
-- **El HUD va en inglés de EE.UU.** (`color`, `behavior`, sentence case). Las conversaciones y esta documentación pueden ir en español.
-- **Texto de varias líneas** usa ritmo de párrafo (`paragraphSmall` o el label con `lineHeight140`); los labels de interlineado 100% son sólo para una línea.
-- **Espaciado y radios:** revisa a 2x antes de mostrar cualquier cambio de UI. Retícula de 8; radios concéntricos (tarjeta 20, menos 8 de margen, filas 12).
-- **Lo que no está en la guía no se agrega al HUD** sin actualizar primero `GUIDE.md`. Así las copias no divergen.
+- **The HUD is not Aura DS.** It is an internal review tool. Its pieces are local; they are not promoted to the DS or requested from Aura.
+- **Aura tokens always**, in the HUD too: color, typography, spacing, radii and durations. Before calling something done, look for raw values (`Color(0x`, loose padding or radius numbers, `Duration(milliseconds:`) in what you touched. The only values outside tokens are the ones in the guide's *DS gaps the HUD uses* table.
+- **Motion:** everything in the HUD moves with `HudMotion` (`flow` and `wobble`). **What goes inside the phone does not**: it uses Aura's motion (`AuraMotion`), because it has to look like the real app.
+- **Lime (`interactiveAccentOn`) is only for what is active**: open category, current step, selected row, selected option, switch on, header line.
+- **The HUD is in US English** (`color`, `behavior`, sentence case). This documentation is in English too.
+- **Multi-line text** uses paragraph rhythm (`paragraphSmall`, or the label with `lineHeight140`); 100% line-height labels are for a single line only.
+- **Spacing and radii:** check at 2x before showing any UI change. 8 grid; concentric radii (card 20, minus 8 of margin, rows 12).
+- **What is not in the guide is not added to the HUD** without updating `GUIDE.md` first. That way the copies don't drift.
 
-## En un prototipo
+## In a prototype
 
-- El prototipo vive en `aura_ds/ds/example/lib/<prototipo>/`, en una rama `prototype/<slug>`. **Nunca se toca `ds/lib`.**
-- El contenido es siempre datos (`HudContent`); el HUD no trae pantallas ni copy propios.
-- Cada vista y cada estado tiene deep link (`?view=&state=`): sirve para revisión, handoff y capturas headless.
-- La fecha del header la calcula `tool/stamp_last_update.py`; nunca se escribe a mano ni es la fecha de hoy.
+- The prototype lives in `aura_ds/ds/example/lib/<prototype>/`, on a `prototype/<slug>` branch. **`ds/lib` is never touched.**
+- Content is always data (`HudContent`); the HUD ships no screens or copy of its own.
+- Every view and every state has a deep link (`?view=&state=`): for review, handoff and headless captures.
+- The header's date is computed by `tool/stamp_last_update.py`; it is never written by hand and is never today's date.
 
-## Cambiar el HUD
+## Changing the HUD
 
-- Se cambia acá, no en la copia de un prototipo. Prueba en `example/` con `flutter run -d chrome`.
-- `flutter analyze lib` sin errores, y `flutter build web --profile --no-tree-shake-icons` en `example/` antes de pushear.
-- Un cambio que rompe la API (`PrototypeShell`, `HudContent` y sus clases) se avisa y se versiona con un tag nuevo.
+- Change it here, not in a prototype's copy. Try it in `example/` with `flutter run -d chrome`.
+- `flutter analyze lib` with no errors, and `flutter build web --profile --no-tree-shake-icons` in `example/`, before pushing.
+- A change that breaks the API (`PrototypeShell`, `HudContent` and its classes) is announced and released under a new tag.
