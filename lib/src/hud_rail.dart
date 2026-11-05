@@ -80,19 +80,42 @@ class _HudRailState extends State<HudRail> {
   /// The view on the phone, shared with the stage.
   String get _view => _prototype.view;
 
-  /// Where the current view sits in the journey, if it is in it.
-  int get _step => _content.journey.indexWhere((s) => s.view == _view);
+  /// The user flow being reviewed, or null for all views.
+  HudUserFlow? get _userFlow => _content.userFlow(_prototype.userFlow);
 
-  /// Sends the phone to [view]. The flow follows from where the view lives,
-  /// and the state stays if the new view has it, or resets to its first.
-  void _show(String view) {
+  /// The journey being walked: the user flow's, or the content's own.
+  List<HudJourneyStep> get _journey => _content.journeyOf(_userFlow);
+
+  String get _journeyTitle => _userFlow?.journeyTitle ?? _content.journeyTitle;
+
+  bool get _journeyIsProgress =>
+      _userFlow?.journeyIsProgress ?? _content.journeyIsProgress;
+
+  /// Where the phone sits in the journey, if it is in it. A step that names
+  /// a state only counts in that state.
+  int get _step => _journey.indexWhere(
+    (s) =>
+        s.view == _view && (s.state == null || s.state == _prototype.state),
+  );
+
+  /// Sends the phone to [view], in [state] when given. Otherwise the state
+  /// stays if the new view has it, or resets to its first.
+  void _show(String view, {String? state}) {
     var states = _content.statesOf(view);
     var keep = states.any((st) => st.id == _prototype.state);
     _prototype.show(
       view,
       _content.flowOf(view),
-      state: keep || states.isEmpty ? null : states.first.id,
+      state: state ?? (keep || states.isEmpty ? null : states.first.id),
     );
+  }
+
+  /// Reviews the user flow [id] (null for all views) and sends the phone to
+  /// its first step.
+  void _pickUserFlow(String? id) {
+    _prototype.userFlow = id;
+    var first = _content.journeyOf(_content.userFlow(id)).firstOrNull;
+    if (id != null && first != null) _show(first.view, state: first.state);
   }
 
   /// Opens a category. Clicks on the phone pick pieces only while
@@ -210,10 +233,16 @@ class _HudRailState extends State<HudRail> {
               value: view.label,
               onTap: () => _go(_Category.views),
             ),
-            if (_step >= 0 && _content.journeyIsProgress)
+            if (_userFlow != null)
+              _JumpRow(
+                label: 'Flow',
+                value: _userFlow!.label,
+                onTap: () => _go(_Category.views),
+              ),
+            if (_step >= 0 && _journeyIsProgress)
               _JumpRow(
                 label: 'Step',
-                value: '${_step + 1} of ${_content.journey.length}',
+                value: '${_step + 1} of ${_journey.length}',
                 onTap: () => _go(_Category.journey),
               ),
             if (state != null)
@@ -247,34 +276,39 @@ class _HudRailState extends State<HudRail> {
   /// marks walked steps; a ladder does not. A divider marks where the order
   /// changes meaning.
   List<Widget> _journeyPanel() {
-    var steps = _content.journey;
+    var steps = _journey;
     if (steps.isEmpty) return [_empty('This prototype has no order to walk.')];
     // Rows and dividers share one column; the drop only counts rows.
     var rows = <Widget>[];
     int? selectedRow;
     for (final (i, st) in steps.indexed) {
       var view = _content.view(st.view);
+      // A step that names a state reads as that state.
+      var state = _content
+          .statesOf(st.view)
+          .where((x) => x.id == st.state)
+          .firstOrNull;
       if (i == _step) selectedRow = rows.length;
       rows.add(
         _StepRow(
           step: _Step(
-            view.label,
+            state?.fullLabel ?? view.label,
             offApp: _content.flowOf(st.view).order > 0,
-            note: view.note,
+            note: state == null ? view.note : view.label,
           ),
           lead: st.lead ?? '${i + 1}',
           current: i == _step,
-          done: _content.journeyIsProgress && _step >= 0 && i < _step,
-          onTap: () => _show(st.view),
+          done: _journeyIsProgress && _step >= 0 && i < _step,
+          onTap: () => _show(st.view, state: st.state),
         ),
       );
       if (st.dividerAfter != null) rows.add(_Divider(st.dividerAfter!));
     }
     return [
       _Card(
-        title: _content.journeyTitle,
+        title: _journeyTitle,
         flush: true,
-        meta: _content.journeyIsProgress && _step >= 0
+        meta: _journeyIsProgress && _step >= 0
             ? '${_step + 1} of ${steps.length}'
             : '${steps.length}',
         child: HudLiquidColumn(
@@ -292,7 +326,33 @@ class _HudRailState extends State<HudRail> {
   /// open beside the rail, in [HudStatesRail], so the list stays one line a
   /// view.
   List<Widget> _viewsPanel() => [
-    for (final g in _content.views)
+    if (_content.userFlows.isNotEmpty)
+      _Card(
+        title: 'Flow',
+        meta: '${_content.userFlows.length}',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            HudSelect<String?>(
+              value: _userFlow?.id,
+              options: [
+                for (final f in _content.userFlows) (f.id, f.label),
+                (null, 'All views'),
+              ],
+              onChanged: _pickUserFlow,
+            ),
+            if (_userFlow?.note != null) ...[
+              const SizedBox(height: AuraSpacing.space12),
+              AuraText(
+                _userFlow!.note!,
+                style: _prose,
+                color: AuraColors.textInverseMuted,
+              ),
+            ],
+          ],
+        ),
+      ),
+    for (final g in _content.viewsIn(_userFlow))
       _Card(
         title: g.title,
         flush: true,

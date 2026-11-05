@@ -21,6 +21,7 @@ class HudContent {
     this.journeyIsProgress = true,
     this.states = const [],
     this.notFinal = const [],
+    this.userFlows = const [],
   });
 
   /// What this round is testing.
@@ -48,6 +49,32 @@ class HudContent {
 
   /// What is mock or undecided.
   final List<HudOpenItem> notFinal;
+
+  /// The tasks the prototype holds, such as Create a goal and Change a goal,
+  /// to review one at a time. Empty shows every view and [journey], as
+  /// before. See [HudUserFlow].
+  final List<HudUserFlow> userFlows;
+
+  /// The user flow with [id], or null for all views.
+  HudUserFlow? userFlow(String? id) =>
+      userFlows.where((f) => f.id == id).firstOrNull;
+
+  /// The view groups [flow] uses, each with only its views; groups left
+  /// empty are dropped. Null gives every group.
+  List<HudViewGroup> viewsIn(HudUserFlow? flow) => flow == null
+      ? views
+      : [
+          for (final g in views)
+            if (g.views.any((v) => flow.views.contains(v.id)))
+              HudViewGroup(g.title, g.flow, [
+                for (final v in g.views)
+                  if (flow.views.contains(v.id)) v,
+              ]),
+        ];
+
+  /// The journey for [flow], or the content's own for all views.
+  List<HudJourneyStep> journeyOf(HudUserFlow? flow) =>
+      flow?.journey ?? journey;
 
   /// Every view, flat.
   List<HudView> get allViews => [for (final g in views) ...g.views];
@@ -100,14 +127,61 @@ class HudView {
   final List<HudState>? states;
 }
 
-/// A step of the journey, pointing at a view.
+/// A task the member does, such as Create a goal: the views it uses and
+/// the order they come in. Not a [HudFlow], which is where a view lives
+/// (the app, a partner site): a user flow can cross several of those.
+///
+/// When a prototype has user flows, Views opens with a dropdown to pick
+/// one, its cards list only that flow's views, and Journey walks its
+/// journey. `?flow=<id>` opens on it.
+@immutable
+class HudUserFlow {
+  /// Creates the user flow.
+  const HudUserFlow(
+    this.id,
+    this.label, {
+    required this.views,
+    required this.journey,
+    this.note,
+    this.journeyTitle = 'Screens in order',
+    this.journeyIsProgress = true,
+  });
+
+  /// Stable id, used in links.
+  final String id;
+
+  /// How the dropdown names it.
+  final String label;
+
+  /// One line on what it covers, under the dropdown.
+  final String? note;
+
+  /// The ids of the views it uses.
+  final List<String> views;
+
+  /// Its steps, in order.
+  final List<HudJourneyStep> journey;
+
+  /// The Journey card's title while it is picked.
+  final String journeyTitle;
+
+  /// Whether its journey is a progression (see [HudContent]).
+  final bool journeyIsProgress;
+}
+
+/// A step of the journey, pointing at a view and, optionally, a state of
+/// it, so one view can be several steps.
 @immutable
 class HudJourneyStep {
   /// Creates the step.
-  const HudJourneyStep(this.view, {this.lead, this.dividerAfter});
+  const HudJourneyStep(this.view, {this.state, this.lead, this.dividerAfter});
 
   /// The view it opens.
   final String view;
+
+  /// The state it puts the view in. A step with a state is current only
+  /// while the phone shows that state.
+  final String? state;
 
   /// What its badge shows. Defaults to its place in the journey.
   final String? lead;

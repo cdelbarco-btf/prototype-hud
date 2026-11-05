@@ -44,7 +44,7 @@ The rail is not one long scrolling list. It has **an icon bar (48)** that picks 
 |---|---|---|
 | `info` | **Summary** | The round's question (*What we're testing*) and an *On the phone now* card with screen, step, state and open items. Each row is a shortcut to its category |
 | `missions` | **Journey** | The screens in the order the person lives them. The current step with its number in lime, the ones walked with ✓, and *Leaves the app* under the ones that leave the app. Tapping a step takes the phone there |
-| `files` | **Views** | Every screen the prototype can show, whether or not it is in the flow, in one card per kind: *Screens*, *Sheets and modals*, *Outside the app*. One line per view, with its number of states on the right. Its states open in the *States rail*. Views and Journey stay in sync |
+| `files` | **Views** | Every screen the prototype can show, whether or not it is in the flow, in one card per kind: *Screens*, *Sheets and modals*, *Outside the app*. One line per view, with its number of states on the right. Its states open in the *States rail*. Views and Journey stay in sync. With user flows, a *Flow* dropdown on top (see *User flows*) |
 | `learning` | **Components** | How the screen is built. See *Inspector and code viewer* |
 | `warning` | **Not final** | What is simulated or undecided (prices, dates, unapproved copy). The icon carries a badge with the count |
 | `settings`, at the bottom | **Layout** | The page's measurement controls, to tune the HUD itself. At the end, *Current spec* with the code to copy |
@@ -78,6 +78,22 @@ Now, while the rail is on **Views** and the phone's view has states, **a seconda
 - **Groups (Oct 19, 2026):** a `HudState` can carry a `group` (for example *Today* and *Proposal*). The rail shows each group under its `labelSm` header with its count, in the order each group first appears, so what exists today and what is proposed never mix. With a group, the state's name does not repeat the prefix; where it appears alone, as in Summary, `fullLabel` is used (*Today · As it is*). A view without groups reads as a plain list.
 
 In the code: `HudStatesRail` in `lib/src/hud_rail.dart`, the `browsingViews` flag in `HudPrototype` and the slot in `prototype_shell.dart`. First tried in the AI Health Coach prototype.
+
+### User flows
+Added Nov 5, 2026 (Christian), for prototypes that hold several flows of one product, such as *Create a goal* and *Change a goal*. Reviewing one at a time keeps Views and Journey short.
+
+- **Optional.** A prototype declares them in `HudContent.userFlows` (`HudUserFlow`). Without them the HUD looks as it did.
+- **A user flow is not a `HudFlow`.** A `HudFlow` is where a screen lives (the app, a partner site) and swaps the phone. A user flow is a task the member does, and it can cross several `HudFlow`s.
+- **Each user flow has:**
+  - an id (used in links: `?flow=create`; `?flow=all` shows every view). Without `flow` in the link the HUD opens on the first user flow, at its first step;
+  - a label and an optional note;
+  - the views it uses;
+  - its own journey, with its title.
+- **Views:** the panel opens with a **Flow** card holding a dropdown, the same look and motion as the device picker but as wide as the card. Under the button, the flow's note. The cards below only list the flow's views (an empty card is hidden). The last option, *All views*, shows everything and the content's own journey.
+- **Picking a flow** sends the phone to its first step.
+- **Journey** shows the picked flow's journey.
+- **Summary** adds a *Flow* row that goes to Views.
+- **Journey steps can name a state** (`HudJourneyStep(view, state:)`), so one view can be several steps (the chat at each question). A step with a state is current only when the phone is in that state; tapping it puts the phone there. It reads as the state's name, with the view's name under it.
 
 ### Inspector and code viewer
 **Inspector**, in Components:
@@ -209,7 +225,7 @@ Values that are not Aura semantic tokens because Aura doesn't have them. Noted h
 | `lib/src/hud_motion.dart` | The liquid curves and the cascading entrances |
 | `lib/src/hud_inspector.dart` | The inspector: marks, tree, outlines and picking on the phone |
 | `lib/src/hud_code_view.dart` | The code viewer |
-| `lib/src/hud_content.dart` | The prototype as data: views, journey, states, Not final |
+| `lib/src/hud_content.dart` | The prototype as data: views, journey, user flows, states, Not final |
 | `lib/src/hud_prototype.dart` | What the phone shows (view, flow, state) and the phone swap between flows |
 | `lib/src/layout_spec.dart` | The layout as data: every measurement in one object |
 | `lib/src/device_stage.dart` | The phone and the 1:1 scale |

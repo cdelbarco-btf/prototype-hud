@@ -2,6 +2,7 @@ import 'package:aura_ds/aura_ds.dart';
 import 'package:device_frame/device_frame.dart';
 import 'package:flutter/material.dart';
 
+import 'hud_controls.dart';
 import 'hud_motion.dart';
 
 /// A device the prototype can be seen on, to judge it at different sizes.
@@ -351,7 +352,7 @@ class _HudDevicePickerState extends State<HudDevicePicker>
     VoidCallback onTap, {
     required bool picked,
     Widget? trailing,
-  }) => _PickerRow(
+  }) => HudPickerRow(
     key: ValueKey(key),
     text: text,
     picked: picked,
@@ -366,67 +367,5 @@ class _HudDevicePickerState extends State<HudDevicePicker>
               )
             : null),
     height: _row,
-  );
-}
-
-/// One row of the picker: a hover fill, its label, and a check or chevron.
-class _PickerRow extends StatefulWidget {
-  const _PickerRow({
-    required this.text,
-    required this.picked,
-    required this.onTap,
-    required this.height,
-    this.trailing,
-    super.key,
-  });
-
-  final String text;
-  final bool picked;
-  final VoidCallback onTap;
-  final double height;
-  final Widget? trailing;
-
-  @override
-  State<_PickerRow> createState() => _PickerRowState();
-}
-
-class _PickerRowState extends State<_PickerRow> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) => MouseRegion(
-    cursor: SystemMouseCursors.click,
-    onEnter: (_) => setState(() => _hover = true),
-    onExit: (_) => setState(() => _hover = false),
-    child: GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: widget.onTap,
-      child: AnimatedContainer(
-        duration: AuraMotion.durationFast,
-        curve: HudMotion.flow,
-        height: widget.height,
-        padding: const EdgeInsets.symmetric(horizontal: AuraSpacing.space8),
-        decoration: BoxDecoration(
-          color: _hover || widget.picked
-              ? AuraColors.surfaceInverseL3
-              : AuraColors.surfaceInverseL1,
-          borderRadius: BorderRadius.circular(AuraSpacing.radiusSm),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: AuraText(
-                widget.text,
-                style: widget.picked
-                    ? AuraTextStyles.labelMdStrong
-                    : AuraTextStyles.labelMd,
-                color: AuraColors.textInverse,
-              ),
-            ),
-            ?widget.trailing,
-          ],
-        ),
-      ),
-    ),
   );
 }

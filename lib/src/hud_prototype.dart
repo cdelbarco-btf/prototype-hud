@@ -15,10 +15,26 @@ import 'hud_motion.dart';
 /// **Local to the HUD, not part of Aura DS.**
 class HudPrototype extends ChangeNotifier {
   /// Starts on [view], in [flow], in [state].
-  HudPrototype({required String view, required HudFlow flow, String state = ''})
-    : _view = view,
-      _flow = flow,
-      _state = state;
+  HudPrototype({
+    required String view,
+    required HudFlow flow,
+    String state = '',
+    String? userFlow,
+  }) : _view = view,
+       _flow = flow,
+       _state = state,
+       _userFlow = userFlow;
+
+  String? _userFlow;
+
+  /// The id of the user flow being reviewed, or null for all views.
+  String? get userFlow => _userFlow;
+
+  set userFlow(String? id) {
+    if (id == _userFlow) return;
+    _userFlow = id;
+    notifyListeners();
+  }
 
   String _view;
   HudFlow _flow;

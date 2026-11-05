@@ -108,18 +108,33 @@ class _PrototypeShellState extends State<PrototypeShell> {
     var content = widget.content;
     var q = Uri.base.queryParameters;
     var ids = content.allViews.map((v) => v.id);
+    // The user flow in the link (`all` for every view), or the first one.
+    // It opens on its first step, unless the link also names a view.
+    var userFlow = q.containsKey('flow')
+        ? content.userFlow(q['flow'])
+        : content.userFlows.firstOrNull;
+    var first = userFlow?.journey.firstOrNull;
     var view = ids.contains(q['view'])
         ? q['view']!
+        : first != null && ids.contains(first.view)
+        ? first.view
         : ids.contains(widget.initialView)
         ? widget.initialView!
         : ids.first;
     var states = content.statesOf(view).map((st) => st.id);
     var state = states.contains(q['state'])
         ? q['state']!
+        : first?.view == view && states.contains(first?.state)
+        ? first!.state!
         : states.contains(widget.initialState)
         ? widget.initialState!
         : (states.isEmpty ? '' : states.first);
-    return HudPrototype(view: view, flow: content.flowOf(view), state: state);
+    return HudPrototype(
+      view: view,
+      flow: content.flowOf(view),
+      state: state,
+      userFlow: userFlow?.id,
+    );
   }
 
   @override

@@ -706,3 +706,261 @@ class _HudSliderState extends State<HudSlider> {
     );
   }
 }
+
+/// One row of a HUD dropdown (the device picker, [HudSelect]): a hover
+/// fill, its label, and a check or chevron.
+class HudPickerRow extends StatefulWidget {
+  /// Creates the row.
+  const HudPickerRow({
+    required this.text,
+    required this.picked,
+    required this.onTap,
+    required this.height,
+    this.trailing,
+    super.key,
+  });
+
+  /// Its label.
+  final String text;
+
+  /// Whether it is the one chosen: bolder, on layer 3.
+  final bool picked;
+
+  /// Called when tapped.
+  final VoidCallback onTap;
+
+  /// Its height.
+  final double height;
+
+  /// A check, a chevron, or nothing.
+  final Widget? trailing;
+
+  @override
+  State<HudPickerRow> createState() => _HudPickerRowState();
+}
+
+class _HudPickerRowState extends State<HudPickerRow> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+    cursor: SystemMouseCursors.click,
+    onEnter: (_) => setState(() => _hover = true),
+    onExit: (_) => setState(() => _hover = false),
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onTap,
+      child: AnimatedContainer(
+        duration: AuraMotion.durationFast,
+        curve: HudMotion.flow,
+        height: widget.height,
+        padding: const EdgeInsets.symmetric(horizontal: AuraSpacing.space8),
+        decoration: BoxDecoration(
+          color: _hover || widget.picked
+              ? AuraColors.surfaceInverseL3
+              : AuraColors.surfaceInverseL1,
+          borderRadius: BorderRadius.circular(AuraSpacing.radiusSm),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: AuraText(
+                widget.text,
+                style: widget.picked
+                    ? AuraTextStyles.labelMdStrong
+                    : AuraTextStyles.labelMd,
+                color: AuraColors.textInverse,
+              ),
+            ),
+            ?widget.trailing,
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// A dropdown as wide as the card it sits in, for one choice among a few:
+/// the user flow in Views. Same look and motion as the device picker: the
+/// panel drops from the button on the HUD's flow curve, and a click
+/// anywhere else closes it.
+///
+/// **Local to the HUD, not part of Aura DS.**
+class HudSelect<T> extends StatefulWidget {
+  /// Creates the dropdown.
+  const HudSelect({
+    required this.value,
+    required this.options,
+    required this.onChanged,
+    super.key,
+  });
+
+  /// The option chosen.
+  final T value;
+
+  /// Every option, with how it is named, in order.
+  final List<(T, String)> options;
+
+  /// Called with the option picked.
+  final ValueChanged<T> onChanged;
+
+  @override
+  State<HudSelect<T>> createState() => _HudSelectState<T>();
+}
+
+class _HudSelectState<T> extends State<HudSelect<T>>
+    with SingleTickerProviderStateMixin {
+  final _portal = OverlayPortalController();
+  final _link = LayerLink();
+  late final _motion = AnimationController(
+    vsync: this,
+    duration: AuraMotion.durationSlow,
+  );
+
+  /// The button's width, so the panel matches it.
+  double _width = 0;
+
+  @override
+  void dispose() {
+    _motion.dispose();
+    super.dispose();
+  }
+
+  bool get _open => _portal.isShowing;
+
+  void _show() {
+    _portal.show();
+    _motion.forward(from: 0);
+    setState(() {});
+  }
+
+  Future<void> _close() async {
+    await _motion.reverse();
+    if (mounted) setState(_portal.hide);
+  }
+
+  void _pick(T value) {
+    widget.onChanged(value);
+    _close();
+  }
+
+  String get _label =>
+      widget.options.firstWhere((o) => o.$1 == widget.value).$2;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      _width = constraints.maxWidth;
+      return OverlayPortal(
+        controller: _portal,
+        overlayChildBuilder: (context) => Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _close,
+              ),
+            ),
+            CompositedTransformFollower(
+              link: _link,
+              targetAnchor: Alignment.bottomLeft,
+              offset: const Offset(0, AuraSpacing.space4),
+              child: _panel(),
+            ),
+          ],
+        ),
+        child: CompositedTransformTarget(link: _link, child: _button()),
+      );
+    },
+  );
+
+  Widget _button() => MouseRegion(
+    cursor: SystemMouseCursors.click,
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _open ? _close : _show,
+      child: Container(
+        height: AuraSpacing.space40,
+        padding: const EdgeInsets.symmetric(horizontal: AuraSpacing.space8),
+        decoration: BoxDecoration(
+          color: AuraColors.surfaceInverseL3,
+          borderRadius: BorderRadius.circular(AuraSpacing.radiusMd),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: AuraText(
+                _label,
+                style: AuraTextStyles.labelMdStrong,
+                color: AuraColors.textInverse,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: AuraSpacing.space8),
+            AnimatedRotation(
+              turns: _open ? 0.5 : 0,
+              duration: AuraMotion.durationNormal,
+              curve: HudMotion.flow,
+              child: Icon(
+                AuraIcons.expandDown,
+                size: AuraSpacing.space12,
+                color: AuraColors.textInverseMuted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Widget _panel() {
+    var t = CurvedAnimation(parent: _motion, curve: HudMotion.flow);
+    return FadeTransition(
+      opacity: t,
+      child: SlideTransition(
+        position: Tween(
+          begin: const Offset(0, -0.04),
+          end: Offset.zero,
+        ).animate(t),
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.97, end: 1).animate(t),
+          alignment: Alignment.topCenter,
+          child: Material(
+            type: MaterialType.transparency,
+            child: Container(
+              width: _width,
+              padding: const EdgeInsets.all(AuraSpacing.space8),
+              decoration: BoxDecoration(
+                color: AuraColors.surfaceInverseL1,
+                borderRadius: BorderRadius.circular(AuraSpacing.radiusMd),
+                border: Border.all(color: AuraColors.borderInverseSubtle),
+                boxShadow: AuraShadows.large,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final (value, label) in widget.options)
+                    HudPickerRow(
+                      key: ValueKey(label),
+                      text: label,
+                      picked: value == widget.value,
+                      onTap: () => _pick(value),
+                      height: AuraSpacing.space32,
+                      trailing: value == widget.value
+                          ? Icon(
+                              AuraIcons.check,
+                              size: AuraSpacing.space16,
+                              color: AuraColors.textInverse,
+                            )
+                          : null,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
