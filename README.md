@@ -75,7 +75,7 @@ Since Nov 12, 2026 the rail has three categories instead of six. Journey, Views 
 
 ### Name the Navigator
 
-Call it what your steps are. Buddy Health Coach calls it *Sessions*:
+Call it what your steps are, for example *Sessions*:
 
 ```dart
 HudContent(
@@ -91,19 +91,19 @@ A prototype with several tasks lists them as user flows. A dropdown above the st
 
 ```dart
 userFlows: [
-  HudUserFlow('create', 'Create a goal', group: 'Session 1',
+  HudUserFlow('create', 'Create an item', group: 'Module 1',
       views: [...], journey: [...]),
-  HudUserFlow('delete', 'Delete a goal', group: 'Session 1',
+  HudUserFlow('delete', 'Delete an item', group: 'Module 1',
       views: [...], journey: [...]),
 ],
 ```
 
-`flow.inGroup('Session 1')` returns a copy of a flow in that group, and `content.copyWith(...)` builds new content from another prototype's, which is how Buddy Health Coach reuses Session 1:
+`flow.inGroup('Module 1')` returns a copy of a flow in that group, and `content.copyWith(...)` builds new content from another prototype's, to reuse its flows as one group:
 
 ```dart
-final content = session1Content.copyWith(
-  journeyLabel: 'Sessions',
-  userFlows: [for (final f in session1Content.userFlows) f.inGroup('Session 1')],
+final content = otherContent.copyWith(
+  journeyLabel: 'Modules',
+  userFlows: [for (final f in otherContent.userFlows) f.inGroup('Module 1')],
 );
 ```
 
