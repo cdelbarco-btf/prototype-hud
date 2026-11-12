@@ -19,8 +19,9 @@ final TextStyle _proseSm = AuraTextStyles.labelSm.copyWith(
 
 /// The HUD rail, in two levels, so it never turns into an endless scroll:
 ///
-/// - **An icon strip** on the outer edge picks a category: Summary, Journey,
-///   Views, States, Components, Not final, and Layout at the foot.
+/// - **An icon strip** on the outer edge picks a category: Summary, the
+///   Navigator (steps, states and pieces in one tree), and Layout at the
+///   foot.
 /// - **A panel** beside it shows only that category.
 ///
 /// The panel is built from solid layers: the rail is layer 1, a card on it
@@ -51,28 +52,40 @@ class HudRail extends StatefulWidget {
 
 enum _Category {
   summary('Summary'),
-  journey('Journey'),
-  views('Views'),
-  components('Components'),
-  notFinal('Not final'),
+  journey('Navigator'),
   layout('Layout');
 
   const _Category(this.label);
 
+  /// The default name. The Navigator can be renamed per prototype; read the
+  /// name shown with [labelIn].
   final String label;
+
+  /// The name shown for this category in [content]'s HUD.
+  String labelIn(HudContent content) =>
+      this == journey ? content.journeyLabel : label;
 
   IconData get icon => switch (this) {
     summary => AuraIcons.info,
     journey => AuraIcons.missions,
-    views => AuraIcons.files,
-    components => AuraIcons.learning,
-    notFinal => AuraIcons.warning,
     layout => AuraIcons.settings,
   };
 }
 
 class _HudRailState extends State<HudRail> {
   _Category _category = _Category.summary;
+
+  /// The entry point opened last, kept while the phone walks the shared
+  /// steps after it.
+  String? _entry;
+
+  /// The flow group picked last, for when no flow is picked yet.
+  String? _pickedGroup;
+
+  /// The flow group under review: the picked flow's, else the last picked,
+  /// else the first.
+  String? get _group =>
+      _userFlow?.group ?? _pickedGroup ?? _content.flowGroups.firstOrNull;
 
   HudContent get _content => widget.content;
   HudPrototype get _prototype => HudPrototypeScope.of(context);
@@ -94,13 +107,13 @@ class _HudRailState extends State<HudRail> {
   /// Where the phone sits in the journey, if it is in it. A step that names
   /// a state only counts in that state.
   int get _step => _journey.indexWhere(
-    (s) =>
-        s.view == _view && (s.state == null || s.state == _prototype.state),
+    (s) => s.view == _view && (s.state == null || s.state == _prototype.state),
   );
 
   /// Sends the phone to [view], in [state] when given. Otherwise the state
   /// stays if the new view has it, or resets to its first.
   void _show(String view, {String? state}) {
+    HudInspectorScope.of(context).focus = null;
     var states = _content.statesOf(view);
     var keep = states.any((st) => st.id == _prototype.state);
     _prototype.show(
@@ -113,21 +126,30 @@ class _HudRailState extends State<HudRail> {
   /// Reviews the user flow [id] (null for all views) and sends the phone to
   /// its first step.
   void _pickUserFlow(String? id) {
+    _entry = null;
     _prototype.userFlow = id;
     var first = _content.journeyOf(_content.userFlow(id)).firstOrNull;
     if (id != null && first != null) _show(first.view, state: first.state);
   }
 
-  /// Opens a category. Clicks on the phone pick pieces only while
-  /// Components is open, and leaving it closes the code viewer, which only
-  /// makes sense beside the tree that opened it.
+  /// Opens a category. Clicks on the phone pick pieces only while the
+  /// Navigator is open with Inspect on, and leaving it closes the code
+  /// viewer, which only makes sense beside the tree that opened it.
   void _go(_Category c) {
     var inspector = HudInspectorScope.of(context);
-    var components = c == _Category.components;
-    inspector.picking = components;
-    if (!components) inspector.focus = null;
-    _prototype.browsingViews = c == _Category.views;
+    var navigator = c == _Category.journey;
+    inspector.picking = navigator && inspector.on;
+    if (!navigator) inspector.focus = null;
+    _prototype.browsingViews = false;
     setState(() => _category = c);
+  }
+
+  /// Turns the inspector's outlines and picking on the phone on or off.
+  void _inspect(bool on) {
+    var inspector = HudInspectorScope.of(context);
+    inspector
+      ..on = on
+      ..picking = on;
   }
 
   @override
@@ -135,10 +157,11 @@ class _HudRailState extends State<HudRail> {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       _Strip(
+        content: _content,
         selected: _category,
         badges: {
-          if (_content.notFinal.isNotEmpty)
-            _Category.notFinal: _content.notFinal.length,
+          if (_content.generalOpenItems.isNotEmpty)
+            _Category.summary: _content.generalOpenItems.length,
         },
         onPick: _go,
       ),
@@ -182,17 +205,14 @@ class _HudRailState extends State<HudRail> {
             bottom: AuraSpacing.space20,
           ),
           child: AuraText(
-            c.label,
+            c.labelIn(_content),
             style: AuraTextStyles.h3,
             color: AuraColors.textInverse,
           ),
         ),
         ...switch (c) {
           _Category.summary => _summary(),
-          _Category.journey => _journeyPanel(),
-          _Category.views => _viewsPanel(),
-          _Category.components => _componentsPanel(),
-          _Category.notFinal => _notFinalPanel(),
+          _Category.journey => _navigatorPanel(),
           _Category.layout => [_Card(child: widget.layoutControls)],
         },
       ].indexed)
@@ -231,13 +251,13 @@ class _HudRailState extends State<HudRail> {
             _JumpRow(
               label: 'Screen',
               value: view.label,
-              onTap: () => _go(_Category.views),
+              onTap: () => _go(_Category.journey),
             ),
             if (_userFlow != null)
               _JumpRow(
                 label: 'Flow',
                 value: _userFlow!.label,
-                onTap: () => _go(_Category.views),
+                onTap: () => _go(_Category.journey),
               ),
             if (_step >= 0 && _journeyIsProgress)
               _JumpRow(
@@ -249,13 +269,13 @@ class _HudRailState extends State<HudRail> {
               _JumpRow(
                 label: 'State',
                 value: state.fullLabel,
-                onTap: () => _go(_Category.views),
+                onTap: () => _go(_Category.journey),
               ),
-            if (_content.notFinal.isNotEmpty)
+            if (_content.openItemsOn(_view).isNotEmpty)
               _JumpRow(
-                label: 'Not final',
-                value: '${_content.notFinal.length} items',
-                onTap: () => _go(_Category.notFinal),
+                label: 'Not final here',
+                value: '${_content.openItemsOn(_view).length}',
+                onTap: () => _go(_Category.journey),
               ),
           ],
         ),
@@ -269,163 +289,318 @@ class _HudRailState extends State<HudRail> {
             color: AuraColors.textInverseMuted,
           ),
         ),
+      if (_content.generalOpenItems.isNotEmpty)
+        _Card(
+          title: 'Not final',
+          meta: '${_content.generalOpenItems.length}',
+          child: Column(
+            children: [
+              for (final o in _content.generalOpenItems)
+                _OpenItem(what: o.what, note: o.note),
+            ],
+          ),
+        ),
     ];
   }
 
-  /// Journey: the views in the order the member meets them. A progression
-  /// marks walked steps; a ladder does not. A divider marks where the order
-  /// changes meaning.
-  List<Widget> _journeyPanel() {
+  /// The Navigator: one tree, read top to bottom. The flow, the steps in
+  /// order (the current one unfolds its states and open items), the views
+  /// outside the journey, and the pieces of the screen on the phone.
+  List<Widget> _navigatorPanel() {
     var steps = _journey;
-    if (steps.isEmpty) return [_empty('This prototype has no order to walk.')];
-    // Rows and dividers share one column; the drop only counts rows.
+    var inJourney = {for (final st in steps) st.view};
+    var others = [
+      for (final g in _content.viewsIn(_userFlow))
+        for (final v in g.views)
+          if (!inJourney.contains(v.id)) v,
+    ];
+    // The journey's entry points, in order. Without them, one list.
+    var entries = [
+      ...{
+        for (final st in steps)
+          if (st.entry != null) st.entry!,
+      },
+    ];
+    var here = _step >= 0 ? steps[_step].entry : null;
+    if (here != null) _entry = here;
+    var open = _entry != null && entries.contains(_entry)
+        ? _entry!
+        : entries.firstOrNull;
+    return [
+      if (_content.userFlows.isNotEmpty) _flowCard(),
+      if (steps.isNotEmpty && entries.isEmpty)
+        _Card(
+          title: _journeyTitle,
+          flush: true,
+          meta: _journeyIsProgress && _step >= 0
+              ? '${_step + 1} of ${steps.length}'
+              : '${steps.length}',
+          child: _stepColumn([for (final (i, st) in steps.indexed) (i, st)]),
+        ),
+      for (final e in entries)
+        _EntryCard(
+          title: e,
+          lead: steps.firstWhere((st) => st.entry == e).lead,
+          count: steps.where((st) => st.entry == e || st.entry == null).length,
+          open: e == open,
+          onTap: () {
+            if (e == open) return;
+            setState(() => _entry = e);
+            var first = steps.firstWhere((st) => st.entry == e);
+            _show(first.view, state: first.state);
+          },
+          // Its own steps, then the shared ones.
+          child: _stepColumn([
+            for (final (i, st) in steps.indexed)
+              if (st.entry == e || st.entry == null) (i, st),
+          ]),
+        ),
+      if (others.isNotEmpty)
+        _Card(
+          title: steps.isEmpty ? 'Views' : 'Other views',
+          flush: true,
+          meta: '${others.length}',
+          child: HudLiquidColumn(
+            gap: AuraSpacing.space2,
+            radius: AuraSpacing.radiusMd,
+            selected: null,
+            children: [
+              for (final v in others)
+                _StepRow(
+                  step: _Step(v.label, offApp: _content.flowOf(v.id).order > 0),
+                  lead: '·',
+                  current: v.id == _view && _step < 0,
+                  done: false,
+                  flag: _content.openItemsOn(v.id).length,
+                  detail: v.id == _view && _step < 0
+                      ? _detail(v.id, note: v.note, withStates: true)
+                      : null,
+                  onTap: () => _show(v.id),
+                ),
+            ],
+          ),
+        ),
+      if (steps.isEmpty && others.isEmpty)
+        _empty('This prototype has no views yet.'),
+      ..._componentsCards(),
+    ];
+  }
+
+  /// Steps as rows, each with its place in the journey. A step with a
+  /// divider after it draws the divider. No drop on the steps: the lime
+  /// number marks the current one, and the drop would make everything it
+  /// unfolds look chosen too.
+  Widget _stepColumn(List<(int, HudJourneyStep)> items) {
     var rows = <Widget>[];
-    int? selectedRow;
-    for (final (i, st) in steps.indexed) {
+    for (final (i, st) in items) {
       var view = _content.view(st.view);
       // A step that names a state reads as that state.
       var state = _content
           .statesOf(st.view)
           .where((x) => x.id == st.state)
           .firstOrNull;
-      if (i == _step) selectedRow = rows.length;
+      var current = i == _step;
       rows.add(
         _StepRow(
           step: _Step(
             state?.fullLabel ?? view.label,
             offApp: _content.flowOf(st.view).order > 0,
-            note: state == null ? view.note : view.label,
           ),
           lead: st.lead ?? '${i + 1}',
-          current: i == _step,
+          current: current,
           done: _journeyIsProgress && _step >= 0 && i < _step,
+          flag: _content.openItemsOn(st.view).length,
+          detail: current
+              ? _detail(
+                  st.view,
+                  note: state == null ? view.note : view.label,
+                  withStates: st.state == null,
+                )
+              : null,
           onTap: () => _show(st.view, state: st.state),
         ),
       );
       if (st.dividerAfter != null) rows.add(_Divider(st.dividerAfter!));
     }
-    return [
-      _Card(
-        title: _journeyTitle,
-        flush: true,
-        meta: _journeyIsProgress && _step >= 0
-            ? '${_step + 1} of ${steps.length}'
-            : '${steps.length}',
-        child: HudLiquidColumn(
-          gap: AuraSpacing.space2,
-          radius: AuraSpacing.radiusMd,
-          selected: selectedRow,
-          children: rows,
-        ),
-      ),
-    ];
+    return HudLiquidColumn(
+      gap: AuraSpacing.space2,
+      radius: AuraSpacing.radiusMd,
+      selected: null,
+      children: rows,
+    );
   }
 
-  /// Views: every screen, in a card per kind. Picking one sends the phone
-  /// there; if it is a step of the journey, the journey follows. Its states
-  /// open beside the rail, in [HudStatesRail], so the list stays one line a
-  /// view.
-  List<Widget> _viewsPanel() => [
-    if (_content.userFlows.isNotEmpty)
+  /// The flow pickers, right above the steps: the group (a session) when
+  /// flows have groups, then the flow inside it. Bare, not in a card,
+  /// because they drive the card below them.
+  Widget _flowCard() {
+    var groups = _content.flowGroups;
+    var group = _group;
+    var flows = [
+      for (final f in _content.userFlows)
+        if (groups.isEmpty || f.group == group) f,
+    ];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AuraSpacing.space12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (groups.isNotEmpty) ...[
+            HudSelect<String>(
+              value: group!,
+              options: [for (final g in groups) (g, g)],
+              onChanged: (g) {
+                setState(() => _pickedGroup = g);
+                _pickUserFlow(
+                  _content.userFlows.where((f) => f.group == g).firstOrNull?.id,
+                );
+              },
+            ),
+            const SizedBox(height: AuraSpacing.space8),
+          ],
+          // Only the flows: a prototype is reviewed one flow at a time
+          // (Nov 12, 2026, Christian: All views was not needed).
+          HudSelect<String?>(
+            value: _userFlow?.id ?? flows.firstOrNull?.id,
+            options: [for (final f in flows) (f.id, f.label)],
+            onChanged: _pickUserFlow,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// What the current row unfolds: its note, its states and what on it is
+  /// not final.
+  Widget _detail(String viewId, {String? note, bool withStates = true}) {
+    var states = withStates ? _content.statesOf(viewId) : const <HudState>[];
+    var open = _content.openItemsOn(viewId);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (note != null)
+          Padding(
+            padding: const EdgeInsets.only(top: AuraSpacing.space4),
+            child: AuraText(
+              note,
+              style: _proseSm,
+              color: AuraColors.textInverseMuted,
+            ),
+          ),
+        if (states.isNotEmpty) ...[
+          const SizedBox(height: AuraSpacing.space8),
+          for (final (g, inGroup) in _groups(states)) ...[
+            if (g != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AuraSpacing.space8,
+                  AuraSpacing.space8,
+                  AuraSpacing.space8,
+                  AuraSpacing.space4,
+                ),
+                child: AuraText(
+                  g.toUpperCase(),
+                  style: AuraTextStyles.labelSm,
+                  color: AuraColors.textInverseSubtle,
+                ),
+              ),
+            for (final st in inGroup)
+              _StateRow(
+                label: st.label,
+                note: st.note,
+                selected: st.id == _prototype.state,
+                onTap: () {
+                  HudInspectorScope.of(context).focus = null;
+                  _prototype.setState(st.id);
+                },
+              ),
+          ],
+        ],
+        if (open.isNotEmpty) ...[
+          const SizedBox(height: AuraSpacing.space4),
+          for (final o in open)
+            _OpenItem(
+              what: o.state == null
+                  ? o.what
+                  : '${o.what} · ${_content.statesOf(viewId).where((x) => x.id == o.state).firstOrNull?.label ?? o.state}',
+              note: o.note,
+            ),
+        ],
+      ],
+    );
+  }
+
+  /// Inspect mode. Off, the phone behaves like the app and the card only
+  /// offers the switch. On, the pieces show on the phone and in a tree, and
+  /// picking one, here or on the phone, opens its code.
+  List<Widget> _componentsCards() {
+    var inspector = HudInspectorScope.of(context);
+    var on = inspector.on;
+    var tree = on ? inspector.tree : const <HudTreeEntry>[];
+    var focused = tree.indexWhere((e) => e.path == inspector.focus);
+    return [
       _Card(
-        title: 'Flow',
-        meta: '${_content.userFlows.length}',
+        title: on ? 'Components · ${_content.view(_view).label}' : null,
+        flush: on && tree.isNotEmpty,
+        meta: on && tree.isNotEmpty ? '${tree.length}' : null,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            HudSelect<String?>(
-              value: _userFlow?.id,
-              options: [
-                for (final f in _content.userFlows) (f.id, f.label),
-                (null, 'All views'),
-              ],
-              onChanged: _pickUserFlow,
+            Padding(
+              padding: on && tree.isNotEmpty
+                  ? const EdgeInsets.fromLTRB(
+                      AuraSpacing.space8,
+                      0,
+                      AuraSpacing.space8,
+                      AuraSpacing.space8,
+                    )
+                  : EdgeInsets.zero,
+              child: HudSwitch(
+                value: on,
+                label: 'Inspect',
+                onChanged: _inspect,
+              ),
             ),
-            if (_userFlow?.note != null) ...[
-              const SizedBox(height: AuraSpacing.space12),
-              AuraText(
-                _userFlow!.note!,
-                style: _prose,
-                color: AuraColors.textInverseMuted,
-              ),
-            ],
-          ],
-        ),
-      ),
-    for (final g in _content.viewsIn(_userFlow))
-      _Card(
-        title: g.title,
-        flush: true,
-        meta: '${g.views.length}',
-        child: HudLiquidColumn(
-          gap: AuraSpacing.space2,
-          radius: AuraSpacing.radiusMd,
-          selected: g.views.indexWhere((v) => v.id == _view) < 0
-              ? null
-              : g.views.indexWhere((v) => v.id == _view),
-          accent: AuraColors.interactiveAccentOn,
-          children: [
-            for (final v in g.views)
-              _StateRow(
-                label: v.label,
-                // A view with states says what it is beside them, in the
-                // states rail; one without says it here.
-                note: _content.statesOf(v.id).isEmpty ? v.note : null,
-                meta: _content.statesOf(v.id).isEmpty
-                    ? null
-                    : '${_content.statesOf(v.id).length}',
-                selected: v.id == _view,
-                onTap: () => _show(v.id),
-              ),
-          ],
-        ),
-      ),
-  ];
-
-  /// Components: how the screen on the phone is built. A switch puts the
-  /// inspector's outlines on the phone; the tree below lists the same pieces,
-  /// indented by depth with the same rainbow, and picking one spotlights it.
-  List<Widget> _componentsPanel() {
-    var inspector = HudInspectorScope.of(context);
-    var tree = inspector.tree;
-    return [
-      _Card(
-        child: HudSwitch(
-          value: inspector.on,
-          label: 'Show on the phone',
-          onChanged: (v) => inspector.on = v,
-        ),
-      ),
-      if (tree.isEmpty)
-        _empty(
-          'No pieces marked on this screen yet. Wrap them in HudComponent '
-          'to see how the screen is built.',
-        )
-      else ...[
-        _Card(
-          title: 'Structure',
-          flush: true,
-          meta: '${tree.length}',
-          child: HudLiquidColumn(
-            gap: AuraSpacing.space2,
-            radius: AuraSpacing.radiusMd,
-            selected: tree.indexWhere((e) => e.path == inspector.focus) < 0
-                ? null
-                : tree.indexWhere((e) => e.path == inspector.focus),
-            children: [
-              for (final e in tree)
-                _TreeRow(
-                  entry: e,
-                  selected: inspector.focus == e.path,
-                  onTap: () {
-                    inspector
-                      ..on = true
-                      ..focus = inspector.focus == e.path ? null : e.path;
-                  },
+            if (!on)
+              Padding(
+                padding: const EdgeInsets.only(top: AuraSpacing.space8),
+                child: AuraText(
+                  'See how the screen is built: its pieces on the phone and '
+                  'their code.',
+                  style: _proseSm,
+                  color: AuraColors.textInverseMuted,
                 ),
-            ],
-          ),
+              )
+            else if (tree.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: AuraSpacing.space8),
+                child: AuraText(
+                  'No pieces marked on this screen yet. Wrap them in '
+                  'HudComponent to see how the screen is built.',
+                  style: _proseSm,
+                  color: AuraColors.textInverseMuted,
+                ),
+              )
+            else
+              HudLiquidColumn(
+                gap: AuraSpacing.space2,
+                radius: AuraSpacing.radiusMd,
+                selected: focused < 0 ? null : focused,
+                children: [
+                  for (final e in tree)
+                    _TreeRow(
+                      entry: e,
+                      selected: inspector.focus == e.path,
+                      onTap: () => inspector.focus = inspector.focus == e.path
+                          ? null
+                          : e.path,
+                    ),
+                ],
+              ),
+          ],
         ),
+      ),
+      if (on && tree.isNotEmpty)
         _Card(
           title: 'By origin',
           child: Column(
@@ -438,24 +613,6 @@ class _HudRailState extends State<HudRail> {
             ],
           ),
         ),
-      ],
-    ];
-  }
-
-  List<Widget> _notFinalPanel() {
-    var open = _content.notFinal;
-    if (open.isEmpty)
-      return [_empty('Nothing on screen is mock or undecided.')];
-    return [
-      _Card(
-        title: 'Mock or undecided',
-        meta: '${open.length}',
-        child: Column(
-          children: [
-            for (final o in open) _OpenItem(what: o.what, note: o.note),
-          ],
-        ),
-      ),
     ];
   }
 }
@@ -498,25 +655,24 @@ class _Divider extends StatelessWidget {
 
 /// A screen in the journey.
 class _Step {
-  const _Step(this.label, {this.offApp = false, this.note});
+  const _Step(this.label, {this.offApp = false});
 
   final String label;
 
   /// Happens outside the app: a partner's page, the system browser.
   final bool offApp;
-
-  /// One line on what it is, shown while it is the current step.
-  final String? note;
 }
 
 /// The icon strip: one button per category, Layout pinned to the foot.
 class _Strip extends StatelessWidget {
   const _Strip({
+    required this.content,
     required this.selected,
     required this.badges,
     required this.onPick,
   });
 
+  final HudContent content;
   final _Category selected;
   final Map<_Category, int> badges;
   final ValueChanged<_Category> onPick;
@@ -562,6 +718,7 @@ class _Strip extends StatelessWidget {
                   if (c != _Category.layout)
                     _StripButton(
                       category: c,
+                      label: c.labelIn(content),
                       selected: c == selected,
                       badge: badges[c],
                       onTap: () => onPick(c),
@@ -569,6 +726,7 @@ class _Strip extends StatelessWidget {
                 const Spacer(),
                 _StripButton(
                   category: _Category.layout,
+                  label: _Category.layout.label,
                   selected: selected == _Category.layout,
                   onTap: () => onPick(_Category.layout),
                 ),
@@ -584,12 +742,14 @@ class _Strip extends StatelessWidget {
 class _StripButton extends StatefulWidget {
   const _StripButton({
     required this.category,
+    required this.label,
     required this.selected,
     required this.onTap,
     this.badge,
   });
 
   final _Category category;
+  final String label;
   final bool selected;
   final int? badge;
   final VoidCallback onTap;
@@ -605,12 +765,12 @@ class _StripButtonState extends State<_StripButton> {
   Widget build(BuildContext context) {
     var selected = widget.selected;
     return Tooltip(
-      message: widget.category.label,
+      message: widget.label,
       waitDuration: AuraMotion.durationXSlow,
       child: Semantics(
         button: true,
         selected: selected,
-        label: widget.category.label,
+        label: widget.label,
         excludeSemantics: true,
         child: MouseRegion(
           cursor: SystemMouseCursors.click,
@@ -838,9 +998,19 @@ class _StepRow extends StatelessWidget {
     required this.current,
     required this.done,
     required this.onTap,
+    this.flag = 0,
+    this.detail,
   });
 
   final _Step step;
+
+  /// How many open items sit on the step's view: a ⚠ and the count on the
+  /// right.
+  final int flag;
+
+  /// What the row unfolds while it is the current one: note, states, open
+  /// items.
+  final Widget? detail;
 
   /// What the badge shows: its place, or a rung on a ladder.
   final String lead;
@@ -862,6 +1032,7 @@ class _StepRow extends StatelessWidget {
           borderRadius: BorderRadius.circular(AuraSpacing.radiusMd),
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             AnimatedContainer(
               duration: AuraMotion.durationSlow,
@@ -904,10 +1075,30 @@ class _StepRow extends StatelessWidget {
                         : AuraColors.textInverseMuted,
                   ),
                   if (step.offApp) const _LeavesTheApp(),
-                  _Note(text: step.note, open: current),
+                  AnimatedSize(
+                    duration: AuraMotion.durationExpand,
+                    curve: HudMotion.flow,
+                    alignment: Alignment.topLeft,
+                    child: detail ?? const SizedBox(width: double.infinity),
+                  ),
                 ],
               ),
             ),
+            if (flag > 0) ...[
+              const SizedBox(width: AuraSpacing.space8),
+              const SizedBox(height: AuraSpacing.space24),
+              Icon(
+                AuraIcons.warning,
+                size: AuraSpacing.space12,
+                color: AuraColors.iconInverseSubtle,
+              ),
+              const SizedBox(width: AuraSpacing.space2),
+              AuraText(
+                '$flag',
+                style: AuraTextStyles.labelSm,
+                color: AuraColors.textInverseSubtle,
+              ),
+            ],
           ],
         ),
       ),
@@ -921,16 +1112,11 @@ class _StateRow extends StatefulWidget {
   const _StateRow({
     required this.label,
     this.note,
-    this.meta,
     required this.selected,
     required this.onTap,
   });
 
   final String label;
-
-  /// A count on the right, like how many states a view has. Gives way to
-  /// the check while the row is the chosen one.
-  final String? meta;
 
   /// One line on what it is, shown while it is the chosen one.
   final String? note;
@@ -947,7 +1133,10 @@ class _StateRowState extends State<_StateRow> {
   @override
   Widget build(BuildContext context) {
     var selected = widget.selected;
-    var fill = hudRowFill(hover: _hover && !selected);
+    // The chosen state is the one thing raised to layer 3 in its step.
+    var fill = selected
+        ? AuraColors.surfaceInverseL3
+        : hudRowFill(hover: _hover);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
@@ -986,12 +1175,6 @@ class _StateRowState extends State<_StateRow> {
                   AuraIcons.check,
                   size: AuraSpacing.space14,
                   color: AuraColors.interactiveAccentOn,
-                )
-              else if (widget.meta != null)
-                AuraText(
-                  widget.meta!,
-                  style: AuraTextStyles.labelSm,
-                  color: AuraColors.textInverseFaint,
                 ),
             ],
           ),
@@ -1417,6 +1600,120 @@ class _StateCardState extends State<_StateCard> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// One entry point of a flow: collapsed to its name, or open on its steps
+/// and the shared ones after them. One is open at a time.
+class _EntryCard extends StatefulWidget {
+  const _EntryCard({
+    required this.title,
+    required this.count,
+    required this.open,
+    required this.onTap,
+    required this.child,
+    this.lead,
+  });
+
+  final String title;
+
+  /// Its first step's badge, such as 1a.
+  final String? lead;
+
+  /// How many steps it walks, shared ones included.
+  final int count;
+  final bool open;
+  final VoidCallback onTap;
+
+  /// The steps, shown while open.
+  final Widget child;
+
+  @override
+  State<_EntryCard> createState() => _EntryCardState();
+}
+
+class _EntryCardState extends State<_EntryCard> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    var open = widget.open;
+    return Container(
+      margin: const EdgeInsets.only(bottom: AuraSpacing.space12),
+      padding: const EdgeInsets.all(AuraSpacing.space8),
+      decoration: BoxDecoration(
+        color: AuraColors.surfaceInverseL2,
+        borderRadius: BorderRadius.circular(AuraSpacing.radiusLg),
+        border: Border.all(
+          color: AuraColors.borderInverseFaint,
+          width: AuraSpacing.borderWidthThin,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          MouseRegion(
+            cursor: open ? MouseCursor.defer : SystemMouseCursors.click,
+            onEnter: (_) => setState(() => _hover = true),
+            onExit: (_) => setState(() => _hover = false),
+            child: GestureDetector(
+              onTap: widget.onTap,
+              child: AnimatedContainer(
+                duration: AuraMotion.durationSlow,
+                curve: HudMotion.flow,
+                padding: const EdgeInsets.all(AuraSpacing.space8),
+                decoration: BoxDecoration(
+                  color: hudRowFill(hover: _hover && !open),
+                  borderRadius: BorderRadius.circular(AuraSpacing.radiusMd),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: AuraText(
+                        widget.title,
+                        style: open
+                            ? AuraTextStyles.labelMdStrong
+                            : AuraTextStyles.labelMd,
+                        color: open
+                            ? AuraColors.textInverse
+                            : AuraColors.textInverseMuted,
+                      ),
+                    ),
+                    AuraText(
+                      '${widget.count}',
+                      style: AuraTextStyles.labelSmLight,
+                      color: AuraColors.textInverseSubtle,
+                    ),
+                    const SizedBox(width: AuraSpacing.space8),
+                    AnimatedRotation(
+                      turns: open ? 0.5 : 0,
+                      duration: AuraMotion.durationSlow,
+                      curve: HudMotion.flow,
+                      child: Icon(
+                        AuraIcons.expandDown,
+                        size: AuraSpacing.space12,
+                        color: AuraColors.iconInverseSubtle,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          AnimatedSize(
+            duration: AuraMotion.durationExpand,
+            curve: HudMotion.flow,
+            alignment: Alignment.topCenter,
+            child: open
+                ? Padding(
+                    padding: const EdgeInsets.only(top: AuraSpacing.space4),
+                    child: widget.child,
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
+        ],
       ),
     );
   }

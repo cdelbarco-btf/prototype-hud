@@ -105,7 +105,12 @@ class HudInspector extends ChangeNotifier {
     var ordered = <HudTreeEntry>[];
     void walk(String? parent) {
       var kids = children[parent] ?? [];
-      kids.sort((a, b) => tops[a]!.compareTo(tops[b]!));
+      // A piece not laid out yet (a screen that just swapped in) has no
+      // top; it sorts last instead of breaking the tree.
+      kids.sort(
+        (a, b) =>
+            (tops[a] ?? double.infinity).compareTo(tops[b] ?? double.infinity),
+      );
       for (final k in kids) {
         ordered.add(entries[k]!);
         walk(k);

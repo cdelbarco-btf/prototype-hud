@@ -31,7 +31,7 @@ Single-line text uses Aura's *label* styles (100% line height). **Any text that 
 A low band in `surfaceInverse`:
 - **Left:** the ☰ / ✕ button that folds the rail, in a 48 column, the same width as the icon bar, so they share one vertical axis. Then the Betterfly logo (tinted with `textInverse`), a separator and the project name (`labelLgStrong`).
 - **Right:**
-  - **The device picker:** a button with the current device (*iPhone 18 Pro Max ⌄*) that opens a tiered dropdown with the HUD's liquid motion. **Platform** as a section (today *iPhone*; Android comes in as another section), **model** as a row, and **variant** unfolded in place when a model has more than one screen (the level exists even though no model uses it today). Everything by click; a click outside closes it. Opens on the **18 Pro**; the phone changes with a fade and a slight shrink, on the `flow` curve. In a narrow window the header hides the author first and then the date, and the device name truncates with an ellipsis. Added Oct 13, 2026.
+  - **The device picker:** a button with the current device (*iPhone 18 Pro Max ⌄*) that opens a tiered dropdown with the HUD's liquid motion. **Platform** as a section (today *iPhone*; Android comes in as another section), **model** as a row, and **variant** unfolded in place when a model has more than one screen (the level exists even though no model uses it today). Everything by click; a click outside closes it. Opens on the **18 Pro**; the phone changes with a fade and a slight shrink, on the `flow` curve. In a narrow window the header hides the author first (below 1060) and then the date (below 900); below 600 it also hides the wordmark and its separator, and the project name and the device picker share what is left, both ending in an ellipsis (Nov 12, 2026: at the browser pane's width the row overflowed by 52 px). Added Oct 13, 2026.
   - `Last update <Month Year>` as a compact on-dark `AuraTag`.
   - The designer's name (`labelMdStrong`).
 - **Bottom edge:** a 2 px line in `AuraGradients.special`.
@@ -42,14 +42,13 @@ The rail is not one long scrolling list. It has **an icon bar (48)** that picks 
 
 | Icon | Category | What it shows |
 |---|---|---|
-| `info` | **Summary** | The round's question (*What we're testing*) and an *On the phone now* card with screen, step, state and open items. Each row is a shortcut to its category |
-| `missions` | **Journey** | The screens in the order the person lives them. The current step with its number in lime, the ones walked with ✓, and *Leaves the app* under the ones that leave the app. Tapping a step takes the phone there |
-| `files` | **Views** | Every screen the prototype can show, whether or not it is in the flow, in one card per kind: *Screens*, *Sheets and modals*, *Outside the app*. One line per view, with its number of states on the right. Its states open in the *States rail*. Views and Journey stay in sync. With user flows, a *Flow* dropdown on top (see *User flows*) |
-| `learning` | **Components** | How the screen is built. See *Inspector and code viewer* |
-| `warning` | **Not final** | What is simulated or undecided (prices, dates, unapproved copy). The icon carries a badge with the count |
+| `info` | **Summary** | The round's question (*What we're testing*), an *On the phone now* card with screen, flow, step and state (each row goes to the Navigator), the view's note, and a *Not final* card with the open items that belong to no screen. The icon carries a badge with that count |
+| `missions` | **Navigator** | One tree for where the phone is and what it is made of: steps, then states, then pieces. See *Navigator* below. A prototype can rename it with `HudContent.journeyLabel` (*Sessions* in Buddy Health Coach) |
 | `settings`, at the bottom | **Layout** | The page's measurement controls, to tune the HUD itself. At the end, *Current spec* with the code to copy |
 
 The Journey, Views and Components icons are approximate: Aura has no route, screens or layers icons.
+
+**Nov 12, 2026 (Christian): Journey, Views and Components became one category, the Navigator, and Not final moved into Summary and onto the screens it belongs to.** Before, the three answered the same question (where am I, and what is this made of?) in three panels, and reviewing meant jumping between them and a states rail. The icon bar went from six categories to three.
 
 **Solid layers, not transparency:**
 - The rail in `surfaceInverseL1`.
@@ -66,7 +65,20 @@ The Journey, Views and Components icons are approximate: Aura has no route, scre
 - **Rows:** 2 between them, so the drop never touches its neighbor.
 - **Concentric radii:** card `radiusLg` (20) minus 8 of margin gives rows and drop `radiusMd` (12).
 
-### States rail
+### Navigator
+One panel that reads top to bottom: flow, step, state, piece.
+
+- **Flow:** with user flows, a bare dropdown sits right above the steps card, not in a card of its own, since it drives that card. When flows carry a `group` (`HudUserFlow.group`, or `inGroup`), a first dropdown picks the group and the second one the flow inside it: in Buddy Health Coach, *Session 1*, then *Create*, *Modify*, *Update* or *Delete a goal*. `HudContent.copyWith` lets a prototype build its content on another's. No note under the dropdowns. The flow dropdown lists only the flows; *All views* was dropped on Nov 12, 2026 (Christian), since a prototype is reviewed one flow at a time.
+- **Steps:** the journey, in order, in a card titled with `journeyTitle`. No drop on the steps: the current step is marked by its number in lime, so the drop never makes what it unfolds look chosen. The current step has its number in lime, walked steps a ✓, and *Leaves the app* under the ones outside the app. Views that are not in the journey follow in an *Other views* card (or *Views*, when there is no journey), so every view is still one tap away. Tapping a row takes the phone there.
+- **Entry points:** when the journey's steps name an `entry` (`HudJourneyStep(entry:)`, such as *Home banner* or *Push*), the steps card becomes one collapsible card per entry point (Nov 12, 2026, Christian). Collapsed, it shows the entry's name and how many steps it walks; open, its own steps and then the shared ones (steps with no `entry`). One is open at a time: opening another sends the phone to its first step and closes the last. Walking the shared steps keeps the entry that led there open.
+- **States, in the step:** the current row unfolds in place with its note, its states (grouped by `group`; the chosen one is the only thing raised to layer 3, with the lime ✓) and its open items. A step that names a state does not list states: it already is one. A row with open items shows ⚠ and the count on the right.
+- **Pieces, in Inspect mode:** a card with an *Inspect* switch. Off (the default), it only offers the switch and the phone behaves like the app. On, the card becomes *Components · <screen>*: the outlines show on the phone, pieces can be clicked there, and the *Structure* tree and *By origin* appear, as in *Inspector and code viewer*. Picking a piece opens the code viewer. Moving the phone to another step or state, or turning Inspect off, closes the viewer; so does leaving the Navigator.
+
+`HudOpenItem` takes an optional `view` (and `state`) to sit on a screen; without it, the item goes to Summary.
+
+### States rail (retired Nov 12, 2026)
+Replaced by the states unfolding in the Navigator's current row. What follows is the history.
+
 Since Oct 19, 2026, **States is no longer a category** (Christian): picking the screen and its state is one decision, and jumping between two categories split it in two. A first attempt nested the states under their view inside Views, and the notes made everything warp.
 
 Now, while the rail is on **Views** and the phone's view has states, **a secondary 280 rail opens next to the rail**, between the rail and the stage:
@@ -89,7 +101,7 @@ Added Nov 5, 2026 (Christian), for prototypes that hold several flows of one pro
   - a label and an optional note;
   - the views it uses;
   - its own journey, with its title.
-- **Views:** the panel opens with a **Flow** card holding a dropdown, the same look and motion as the device picker but as wide as the card. Under the button, the flow's note. The cards below only list the flow's views (an empty card is hidden). The last option, *All views*, shows everything and the content's own journey.
+- **Navigator:** a dropdown above the steps, the same look and motion as the device picker but as wide as the panel. No note under it (dropped Nov 12, 2026: it took room and added little). The cards below only list the flow's views (an empty card is hidden). There is no *All views* option since Nov 12, 2026.
 - **Picking a flow** sends the phone to its first step.
 - **Journey** shows the picked flow's journey.
 - **Summary** adds a *Flow* row that goes to Views.
@@ -220,7 +232,7 @@ Values that are not Aura semantic tokens because Aura doesn't have them. Noted h
 | File | What it is |
 |---|---|
 | `lib/src/prototype_shell.dart` | The assembly: header, rail, viewer and stage, and the Layout controls |
-| `lib/src/hud_rail.dart` | The rail: the icon bar, each category's panel and the states rail |
+| `lib/src/hud_rail.dart` | The rail: the icon bar, Summary, the Navigator (flow pickers, entry point cards, steps, Inspect) and Layout |
 | `lib/src/hud_controls.dart` | The local controls and the drop |
 | `lib/src/hud_motion.dart` | The liquid curves and the cascading entrances |
 | `lib/src/hud_inspector.dart` | The inspector: marks, tree, outlines and picking on the phone |
@@ -231,6 +243,7 @@ Values that are not Aura semantic tokens because Aura doesn't have them. Noted h
 | `lib/src/device_stage.dart` | The phone and the 1:1 scale |
 | `lib/src/hud_devices.dart` | The devices and the header's picker. SE 375 × 667, 18 Pro 402 × 874, 18 Pro Max 440 × 956. Android comes in with `platform: 'Android'`. `HudDeviceScope.of(context)` tells the screen which device is on the stage |
 | `tool/stamp_last_update.py` | Computes the header's date from the code |
+| `tool/dev.sh` | Runs a prototype on a web server with hot reload on save, stamping the date each time (see the README) |
 | `example/` | The HUD with a generic screen, to try changes to the HUD itself |
 
 **Links:** `?view=<id>&state=<id>` opens the phone on that view and state, and `?device=se|18-pro|18-pro-max` on that device.

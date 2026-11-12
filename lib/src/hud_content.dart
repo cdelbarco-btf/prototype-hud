@@ -17,6 +17,7 @@ class HudContent {
     required this.views,
     this.round,
     this.journey = const [],
+    this.journeyLabel = 'Navigator',
     this.journeyTitle = 'Screens in order',
     this.journeyIsProgress = true,
     this.states = const [],
@@ -37,6 +38,11 @@ class HudContent {
   /// the Journey category then says there is no order to walk.
   final List<HudJourneyStep> journey;
 
+  /// The Navigator category's name in the rail, for a prototype whose
+  /// steps are better named for what they are, such as "Sessions".
+  /// Defaults to "Navigator".
+  final String journeyLabel;
+
   /// The Journey card's title.
   final String journeyTitle;
 
@@ -54,6 +60,47 @@ class HudContent {
   /// to review one at a time. Empty shows every view and [journey], as
   /// before. See [HudUserFlow].
   final List<HudUserFlow> userFlows;
+
+  /// The groups the user flows fall in, in the order they first come.
+  List<String> get flowGroups => [
+    ...{
+      for (final f in userFlows)
+        if (f.group != null) f.group!,
+    },
+  ];
+
+  /// This content with some parts swapped, for a prototype that builds on
+  /// another's.
+  HudContent copyWith({
+    String? question,
+    String? round,
+    List<HudViewGroup>? views,
+    List<HudJourneyStep>? journey,
+    String? journeyLabel,
+    String? journeyTitle,
+    List<HudState>? states,
+    List<HudOpenItem>? notFinal,
+    List<HudUserFlow>? userFlows,
+  }) => HudContent(
+    question: question ?? this.question,
+    round: round ?? this.round,
+    views: views ?? this.views,
+    journey: journey ?? this.journey,
+    journeyLabel: journeyLabel ?? this.journeyLabel,
+    journeyTitle: journeyTitle ?? this.journeyTitle,
+    journeyIsProgress: journeyIsProgress,
+    states: states ?? this.states,
+    notFinal: notFinal ?? this.notFinal,
+    userFlows: userFlows ?? this.userFlows,
+  );
+
+  /// The open items that belong to no screen: Summary lists them.
+  List<HudOpenItem> get generalOpenItems =>
+      notFinal.where((o) => o.view == null).toList();
+
+  /// The open items that sit on [view]: the Navigator shows them in its row.
+  List<HudOpenItem> openItemsOn(String view) =>
+      notFinal.where((o) => o.view == view).toList();
 
   /// The user flow with [id], or null for all views.
   HudUserFlow? userFlow(String? id) =>
@@ -73,8 +120,7 @@ class HudContent {
         ];
 
   /// The journey for [flow], or the content's own for all views.
-  List<HudJourneyStep> journeyOf(HudUserFlow? flow) =>
-      flow?.journey ?? journey;
+  List<HudJourneyStep> journeyOf(HudUserFlow? flow) => flow?.journey ?? journey;
 
   /// Every view, flat.
   List<HudView> get allViews => [for (final g in views) ...g.views];
@@ -145,15 +191,33 @@ class HudUserFlow {
     this.note,
     this.journeyTitle = 'Screens in order',
     this.journeyIsProgress = true,
+    this.group,
   });
 
   /// Stable id, used in links.
   final String id;
 
+  /// The group it belongs to, such as a coaching session. With groups, the
+  /// Navigator shows two pickers: the group, then the flow inside it.
+  final String? group;
+
+  /// This flow, in [group].
+  HudUserFlow inGroup(String group) => HudUserFlow(
+    id,
+    label,
+    views: views,
+    journey: journey,
+    note: note,
+    journeyTitle: journeyTitle,
+    journeyIsProgress: journeyIsProgress,
+    group: group,
+  );
+
   /// How the dropdown names it.
   final String label;
 
-  /// One line on what it covers, under the dropdown.
+  /// One line on what it covers. Kept as the flow's description in the
+  /// content; the Navigator no longer shows it (Nov 12, 2026).
   final String? note;
 
   /// The ids of the views it uses.
@@ -174,7 +238,13 @@ class HudUserFlow {
 @immutable
 class HudJourneyStep {
   /// Creates the step.
-  const HudJourneyStep(this.view, {this.state, this.lead, this.dividerAfter});
+  const HudJourneyStep(
+    this.view, {
+    this.state,
+    this.lead,
+    this.dividerAfter,
+    this.entry,
+  });
 
   /// The view it opens.
   final String view;
@@ -188,6 +258,12 @@ class HudJourneyStep {
 
   /// A line drawn after this step, where the journey changes meaning.
   final String? dividerAfter;
+
+  /// The entry point this step belongs to, such as "Push" or "Home
+  /// banner". Steps without one are shared: they follow every entry point.
+  /// With entry points, the Navigator shows one collapsible card per entry
+  /// point instead of one list.
+  final String? entry;
 }
 
 /// A state a view can be put in.
@@ -221,11 +297,18 @@ class HudState {
 @immutable
 class HudOpenItem {
   /// Creates the item.
-  const HudOpenItem(this.what, this.note);
+  const HudOpenItem(this.what, this.note, {this.view, this.state});
 
   /// What it is.
   final String what;
 
   /// Why it is not final, and whose call it is.
   final String note;
+
+  /// The view it sits on. With it, the item shows in that view's row in the
+  /// Navigator; without it, in Summary.
+  final String? view;
+
+  /// The state of [view] it sits on, when it is only true there.
+  final String? state;
 }

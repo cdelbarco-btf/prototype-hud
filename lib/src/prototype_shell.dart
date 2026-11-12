@@ -188,10 +188,12 @@ class _PrototypeShellState extends State<PrototypeShell> {
     // curve that starts quick and settles slowly. Its content fades out ahead
     // of the width, so nothing is seen being cut by the closing edge, and
     // fades back in once there is room for it.
-    var rail = AnimatedContainer(
+    // Never wider than the window: on a very narrow one (a browser pane) it
+    // is clipped at the edge instead of pushing the row past it.
+    Widget railOf(double max) => AnimatedContainer(
       duration: AuraMotion.durationExpand,
       curve: HudMotion.flow,
-      width: _railOpen ? _spec.railWidth : 0,
+      width: _railOpen ? (_spec.railWidth < max ? _spec.railWidth : max) : 0,
       clipBehavior: Clip.hardEdge,
       decoration: const BoxDecoration(color: AuraColors.surfaceInverseL1),
       child: OverflowBox(
@@ -355,7 +357,7 @@ class _PrototypeShellState extends State<PrototypeShell> {
                         children: switch (_spec.railSide) {
                           RailSide.left => [
                             if (_spec.showRail) ...[
-                              rail,
+                              railOf(box.maxWidth),
                               states,
                               if (!narrow) code(room),
                             ],
@@ -366,7 +368,7 @@ class _PrototypeShellState extends State<PrototypeShell> {
                             if (_spec.showRail) ...[
                               if (!narrow) code(room),
                               states,
-                              rail,
+                              railOf(box.maxWidth),
                             ],
                           ],
                         },
@@ -411,9 +413,17 @@ class _ShellHeader extends StatelessWidget {
   static const double _tagFrom = 900;
   static const double _authorFrom = 1060;
 
+  /// Below this, the wordmark and its separator give way too, so the
+  /// project name and the device picker keep the row.
+  static const double _logoFrom = 600;
+
   @override
   Widget build(BuildContext context) {
     var width = MediaQuery.sizeOf(context).width;
+    var picker = ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 200),
+      child: HudDevicePicker(value: device, onChanged: onDevice),
+    );
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -459,23 +469,25 @@ class _ShellHeader extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: AuraSpacing.space8),
-                // The wordmark is one flat colour, so it is tinted to the
-                // inverse token rather than shipping a second, light asset.
-                Image.asset(
-                  'assets/bf-logo-main.png',
-                  package: 'prototype_hud',
-                  height: AuraSpacing.space20,
-                  color: AuraColors.textInverse,
-                  colorBlendMode: BlendMode.srcIn,
-                  semanticLabel: 'Betterfly',
-                ),
-                const SizedBox(width: AuraSpacing.space16),
-                Container(
-                  width: AuraSpacing.borderWidthThin,
-                  height: AuraSpacing.space24,
-                  color: AuraColors.borderInverseSubtle,
-                ),
+                if (width >= _logoFrom) ...[
+                  const SizedBox(width: AuraSpacing.space8),
+                  // The wordmark is one flat colour, so it is tinted to the
+                  // inverse token rather than shipping a second, light asset.
+                  Image.asset(
+                    'assets/bf-logo-main.png',
+                    package: 'prototype_hud',
+                    height: AuraSpacing.space20,
+                    color: AuraColors.textInverse,
+                    colorBlendMode: BlendMode.srcIn,
+                    semanticLabel: 'Betterfly',
+                  ),
+                  const SizedBox(width: AuraSpacing.space16),
+                  Container(
+                    width: AuraSpacing.borderWidthThin,
+                    height: AuraSpacing.space24,
+                    color: AuraColors.borderInverseSubtle,
+                  ),
+                ],
                 const SizedBox(width: AuraSpacing.space16),
                 Expanded(
                   child: AuraText(
@@ -489,10 +501,11 @@ class _ShellHeader extends StatelessWidget {
                 // different sizes.
                 // Its natural width, capped, so the title keeps the rest of the row
                 // and is the one to give way on a narrow window.
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 200),
-                  child: HudDevicePicker(value: device, onChanged: onDevice),
-                ),
+                // Its natural width, capped. Only on a narrow window does it
+                // also shrink (ending in an ellipsis): as a flexible child on
+                // a wide one, it would claim half the free row and push
+                // everything after it to the middle.
+                if (width >= _logoFrom) picker else Flexible(child: picker),
                 // On a narrow window the header gives up the least needed
                 // first: the author, then the date.
                 if (width >= _tagFrom) ...[
