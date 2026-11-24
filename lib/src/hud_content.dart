@@ -157,7 +157,13 @@ class HudViewGroup {
 @immutable
 class HudView {
   /// Creates the view.
-  const HudView(this.id, this.label, {this.note, this.states});
+  const HudView(
+    this.id,
+    this.label, {
+    this.note,
+    this.states,
+    this.page = false,
+  });
 
   /// Stable id, used in links and by the prototype's screen builder.
   final String id;
@@ -171,6 +177,11 @@ class HudView {
   /// The states this view can be put in, when they differ from the
   /// prototype's default set.
   final List<HudState>? states;
+
+  /// A page, not a phone screen: the stage drops the device and the view
+  /// fills it edge to edge, like a landing page (a gallery, a catalog).
+  /// The device picker has nothing to change while it is on.
+  final bool page;
 }
 
 /// A task the member does, such as Create a goal: the views it uses and

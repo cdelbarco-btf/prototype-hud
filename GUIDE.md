@@ -7,6 +7,8 @@ The HUD is everything around the phone on a prototype page: the header, the rail
 
 ## Anatomy
 
+**Page views** (`HudView(page: true)`, Nov 24, 2026, Christian): a view that is a page, not a phone screen, such as a gallery or catalog of every card. The stage drops the device and the view fills it edge to edge, like a landing page. Everything else (rail, links, states) works the same.
+
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
 │ ✕ │ Betterfly │ Project    iPhone [SE|18 Pro|…] [Last update Oct 2026] Chris │

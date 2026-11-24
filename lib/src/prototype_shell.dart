@@ -168,18 +168,24 @@ class _PrototypeShellState extends State<PrototypeShell> {
               child: child,
             ),
           ),
-          child: DeviceStage(
-            key: ValueKey(_device),
-            device: _device.info,
-            spec: _spec,
-            child: HudDeviceScope(
-              device: _device,
-              child: KeyedSubtree(
-                key: ValueKey(_prototype.run),
-                child: widget.screen(context, _prototype),
-              ),
-            ),
-          ),
+          child: widget.content.view(_prototype.view).page
+              // A page view: no phone, the screen fills the stage.
+              ? KeyedSubtree(
+                  key: ValueKey('page-${_prototype.view}-${_prototype.run}'),
+                  child: ClipRect(child: widget.screen(context, _prototype)),
+                )
+              : DeviceStage(
+                  key: ValueKey(_device),
+                  device: _device.info,
+                  spec: _spec,
+                  child: HudDeviceScope(
+                    device: _device,
+                    child: KeyedSubtree(
+                      key: ValueKey(_prototype.run),
+                      child: widget.screen(context, _prototype),
+                    ),
+                  ),
+                ),
         ),
       ),
     );
